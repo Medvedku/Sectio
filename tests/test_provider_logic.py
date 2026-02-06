@@ -8,4 +8,4 @@ def test_ipe_provider():
     print(f"Calculated Area: {geom.area:.2f} mm²")
     
     assert geom.area > 0
-    assert geom.geom_type == 'Polygon'
+    assert geom.polygon.geom_type == 'Polygon'

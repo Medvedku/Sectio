@@ -33,3 +33,22 @@ class Catalog:
                 for _, row in df.iterrows():
                     results.append({"Family": fam, "ID": row['Section_ID']})
         return pd.DataFrame(results)
+
+
+
+    def get_schema(self, family_name=None):
+            """
+            Returns property definitions. 
+            If no family_name: Returns unique column definitions across the whole DB.
+            If family_name: Returns definitions specific to that family's table.
+            """
+            with sqlite3.connect(self.db_path) as conn:
+                if not family_name:
+                    # Get unique definitions across all tables
+                    query = "SELECT DISTINCT column_name, description, unit FROM DATA_DICTIONARY"
+                    return pd.read_sql_query(query, conn)
+                
+                # Filter specifically by the requested table
+                table_key = f"sections_{family_name.lower()}"
+                query = "SELECT column_name, description, unit FROM DATA_DICTIONARY WHERE table_name = ?"
+                return pd.read_sql_query(query, conn, params=(table_key,))

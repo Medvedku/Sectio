@@ -21,7 +21,7 @@ def test_raw_chs_export():
     
     try:
         save_geometry_to_svg(
-            geom, 
+            geom.polygon, 
             filename=raw_filename, 
             folder=output_folder,
             color="#34495e" # A dark steel grey
@@ -41,12 +41,12 @@ def test_hollow_sections_export():
     # 1. RHS Sample (Rectangular)
     rhs_id = "RHS50x30x2.6"
     rhs_geom = sectio.db.get_section("sections_rhs", rhs_id)
-    sectio.save_geometry_to_svg(rhs_geom, f"{rhs_id}.svg", folder=output_folder, color="#3498db")
+    sectio.save_geometry_to_svg(rhs_geom.polygon, f"{rhs_id}.svg", folder=output_folder, color="#3498db")
 
     # 2. SHS Sample (Square)
     shs_id = "SHS40x2.6"
     shs_geom = sectio.db.get_section("sections_shs", shs_id)
-    sectio.save_geometry_to_svg(shs_geom, f"{shs_id}.svg", folder=output_folder, color="#9b59b6")
+    sectio.save_geometry_to_svg(shs_geom.polygon, f"{shs_id}.svg", folder=output_folder, color="#9b59b6")
 
     print(f"\n📂 Exported {rhs_id} and {shs_id} to {output_folder}")
 

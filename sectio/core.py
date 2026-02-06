@@ -26,83 +26,83 @@ class CrossSection:
     # def _calculate_raw_inertia(self):
     #     def _poly_inertia(ring):
     #         x, y = ring.coords.xy
-    #         ix, iy, ixy = 0, 0, 0
+    #         iy, iz, iyz = 0, 0, 0
     #         for i in range(len(x) - 1):
     #             a_i = x[i] * y[i+1] - x[i+1] * y[i]
-    #             ix += (y[i]**2 + y[i]*y[i+1] + y[i+1]**2) * a_i
-    #             iy += (x[i]**2 + x[i]*x[i+1] + x[i+1]**2) * a_i
-    #             ixy += (x[i]*y[i+1] + 2*x[i]*y[i] + 2*x[i+1]*y[i+1] + x[i+1]*y[i]) * a_i
-    #         return abs(ix / 12.0), abs(iy / 12.0), ixy / 24.0
-
-    #     Ix, Iy, Ixy = _poly_inertia(self.polygon.exterior)
+    #             iy += (y[i]**2 + y[i]*y[i+1] + y[i+1]**2) * a_i
+    #             iz += (x[i]**2 + x[i]*x[i+1] + x[i+1]**2) * a_i
+    #             iyz += (x[i]*y[i+1] + 2*x[i]*y[i] + 2*x[i+1]*y[i+1] + x[i+1]*y[i]) * a_i
+    #         return abs(iy / 12.0), abs(iz / 12.0), iyz / 24.0
+    #
+    #     Iy, Iz, Iyz = _poly_inertia(self.polygon.exterior)
     #     for interior in self.polygon.interiors:
-    #         h_ix, h_iy, h_ixy = _poly_inertia(interior)
-    #         Ix -= h_ix
+    #         h_iy, h_iz, h_iyz = _poly_inertia(interior)
     #         Iy -= h_iy
-    #         Ixy -= h_ixy
-    #     return Ix, Iy, Ixy
+    #         Iz -= h_iz
+    #         Iyz -= h_iyz
+    #     return Iy, Iz, Iyz
 
     def _calculate_raw_inertia(self):
             def _poly_inertia(ring):
                 x, y = ring.coords.xy
                 # Initialize inside the helper
-                ix_sum, iy_sum, ixy_sum = 0.0, 0.0, 0.0
+                iy_sum, iz_sum, iyz_sum = 0.0, 0.0, 0.0
                 
                 for i in range(len(x) - 1):
                     # Segment common factor (Shoelace area component)
                     common = x[i] * y[i+1] - x[i+1] * y[i]
                     
-                    ix_sum += (y[i]**2 + y[i]*y[i+1] + y[i+1]**2) * common
-                    iy_sum += (x[i]**2 + x[i]*x[i+1] + x[i+1]**2) * common
-                    ixy_sum += (x[i]*y[i+1] + 2*x[i]*y[i] + 2*x[i+1]*y[i+1] + x[i+1]*y[i]) * common
+                    iy_sum += (y[i]**2 + y[i]*y[i+1] + y[i+1]**2) * common
+                    iz_sum += (x[i]**2 + x[i]*x[i+1] + x[i+1]**2) * common
+                    iyz_sum += (x[i]*y[i+1] + 2*x[i]*y[i] + 2*x[i+1]*y[i+1] + x[i+1]*y[i]) * common
                 
                 # Return the raw sums for this specific ring
-                return abs(ix_sum / 12.0), abs(iy_sum / 12.0), ixy_sum / 24.0
+                return abs(iy_sum / 12.0), abs(iz_sum / 12.0), iyz_sum / 24.0
 
             # 1. Start with the exterior shell
-            Ix, Iy, Ixy = _poly_inertia(self.polygon.exterior)
+            Iy, Iz, Iyz = _poly_inertia(self.polygon.exterior)
 
             # 2. Subtract the holes (interiors)
             for interior in self.polygon.interiors:
-                h_ix, h_iy, h_ixy = _poly_inertia(interior)
-                Ix -= h_ix
+                h_iy, h_iz, h_iyz = _poly_inertia(interior)
                 Iy -= h_iy
-                Ixy -= h_ixy
+                Iz -= h_iz
+                Iyz -= h_iyz
                 
-            return Ix, Iy, Ixy
+            return Iy, Iz, Iyz
 
     @property
-    def Ix(self): return self._calculate_raw_inertia()[0]
+    def Iy(self): return self._calculate_raw_inertia()[0]
     
     @property
-    def Iy(self): return self._calculate_raw_inertia()[1]
+    def Iz(self): return self._calculate_raw_inertia()[1]
     
     @property
-    def Ixy(self): return self._calculate_raw_inertia()[2]
+    def Iyz(self): return self._calculate_raw_inertia()[2]
 
     # --- Principal Axes ---
     @property
     def principal_moments(self):
-        ix, iy, ixy = self.Ix, self.Iy, self.Ixy
-        avg_i = (ix + iy) / 2
-        diff_i = np.sqrt(((ix - iy) / 2)**2 + ixy**2)
+        iy, iz, iyz = self.Iy, self.Iz, self.Iyz
+        avg_i = (iy + iz) / 2
+        diff_i = np.sqrt(((iy - iz) / 2)**2 + iyz**2)
         return avg_i + diff_i, avg_i - diff_i
 
     @property
     def alpha(self):
         """Inclination to principal axis in degrees."""
-        ix, iy, ixy = self.Ix, self.Iy, self.Ixy
-        return 0.5 * np.degrees(np.arctan2(2 * ixy, iy - ix))
+        iy, iz, iyz = self.Iy, self.Iz, self.Iyz
+        return 0.5 * np.degrees(np.arctan2(2 * iyz, iz - iy))
 
     # --- Section Moduli ---
     @property
     def elastic_moduli(self):
-        """Returns (Wx_top, Wx_bot, Wy_right, Wy_left)"""
-        wx_top = self.Ix / self.y_top if self.y_top > 0 else 0
-        wx_bot = self.Ix / self.y_bottom if self.y_bottom > 0 else 0
-        wy_right = self.Iy / self.x_right if self.x_right > 0 else 0
-        wy_left = self.Iy / self.x_left if self.x_left > 0 else 0
-        return wx_top, wx_bot, wy_right, wy_left
+        """Returns (Wy_top, Wy_bot, Wz_right, Wz_left)"""
+        wy_top = self.Iy / self.y_top if self.y_top > 0 else 0
+        wy_bot = self.Iy / self.y_bottom if self.y_bottom > 0 else 0
+        wz_right = self.Iz / self.x_right if self.x_right > 0 else 0
+        wz_left = self.Iz / self.x_left if self.x_left > 0 else 0
+        return wy_top, wy_bot, wz_right, wz_left
 
     @property
     def J(self):

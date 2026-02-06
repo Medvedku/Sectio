@@ -209,3 +209,5 @@ __marimo__/
 # Test outputs
 # Ignore all test SVGs
 tests/exported_svgs/*
+
+.venv-research

@@ -28,7 +28,7 @@ def test_random_section_to_svg():
     from sectio.exporters.svg_exporter import save_geometry_to_svg
     
     save_geometry_to_svg(
-        geom, 
+        geom.polygon, 
         filename=filename, 
         folder=output_folder, 
         color="#2ecc71" # Structural Green
