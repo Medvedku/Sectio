@@ -2,9 +2,11 @@ import numpy as np
 from shapely.geometry import Polygon
 
 class CrossSection:
-    def __init__(self, polygon, metadata=None):
+    def __init__(self, polygon, metadata=None, j_manual=None):
         self.polygon = polygon
         self.metadata = metadata or {}
+        # Store the manual torsional constant if provided by a parametric function
+        self._j_manual = j_manual
         
         # Fiber distances from Centroid (0,0)
         minx, miny, maxx, maxy = self.polygon.bounds
@@ -107,12 +109,21 @@ class CrossSection:
     @property
     def J(self):
         """Torsional Constant (St. Venant)."""
+        # --- PRIORITY 1: Manual/Parametric Override ---
+        # If the creation function calculated a high-precision J, use it.
+        if self._j_manual is not None:
+            return self._j_manual
+
+        # --- PRIORITY 2: Closed Section (Hollow) Logic ---
         if self.has_holes:
             area_int = sum(Polygon(h).area for h in self.polygon.interiors)
-            area_mean = ( (self.area + area_int) + area_int ) / 2
+            area_mean = ((self.area + area_int) + area_int) / 2
             peri_mean = (self.polygon.exterior.length + sum(h.length for h in self.polygon.interiors)) / 2
             t_eff = self.area / peri_mean
             return (4 * (area_mean**2) * t_eff) / peri_mean
-        else:
-            avg_t = self.area / ( (self.polygon.exterior.length + sum(h.length for h in self.polygon.interiors)) / 2)
-            return (1/3) * self.area * (avg_t**2)
+        
+        # --- PRIORITY 3: Open Section Fallback ---
+        # Note: This is a rough approximation. Parametric creation should 
+        # ideally always provide j_manual for open sections.
+        avg_t = self.area / ((self.polygon.exterior.length + sum(h.length for h in self.polygon.interiors)) / 2)
+        return (1/3) * self.area * (avg_t**2)

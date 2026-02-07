@@ -15,8 +15,8 @@ from sectio.geometry import (
 # Most I and U sections share the same basic dimensions
 STD_I = {"h": "h", "b": "b", "tf": "tf", "tw": "tw", "r_root": "r_root"}
 TAPERED = {**STD_I, "r_toe": "r_toe"}
-ANGLE = {"h": "h", "b": "b", "t": "t", "r_root": "r_root", "r_toe": "r_toe"}
-HOLLOW = {"h": "h", "b": "b", "t": "t", "r_out": "r_out", "r_in": "r_in"}
+ANGLE = {"h": "h", "b": "b", "t": "tw", "r_root": "r_root", "r_toe": "r_toe"}
+HOLLOW = {"h": "h", "b": "b", "t": "tw", "r_out": "r_out", "r_in": "r_in"}
 
 # --- 2. Geometry Function Mapping ---
 GEOM_MAP = {
@@ -54,11 +54,11 @@ PARAM_MAP = {
     
     # Angles
     "sections_lu": ANGLE,
-    "sections_le": {"h": "b", "b": "b", "t": "t", "r_root": "r_root", "r_toe": "r_toe"},
+    "sections_le": {"h": "b", "b": "b", "t": "tw", "r_root": "r_root", "r_toe": "r_toe"},
     
     # Hollow & Specialized
     "sections_rhs": HOLLOW,
-    "sections_shs": {"a": "h", "t": "t", "r_out": "r_out", "r_in": "r_in"},
-    "sections_chs": {"d": "D", "t": "T"},
+    "sections_shs": {"a": "h", "t": "tw", "r_out": "r_out", "r_in": "r_in"},
+    "sections_chs": {"d": "D", "t": "tw"},
     "sections_t":   {**TAPERED, "r_web": "r_web"}
 }
