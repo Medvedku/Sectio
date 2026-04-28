@@ -1,0 +1,2 @@
+include src/sectio/resources/steel_profiles.db
+recursive-include src/sectio/resources *

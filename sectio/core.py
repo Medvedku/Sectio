@@ -1,14 +1,20 @@
 import numpy as np
 from shapely.geometry import Polygon
+import meshpy.triangle as triangle
+
 
 class CrossSection:
     def __init__(self, polygon, metadata=None, j_manual=None):
-        self.polygon = polygon
+        # Step 1: Auto-convert list of points to a Polygon if needed
+        if isinstance(polygon, (list, tuple)):
+            self.polygon = Polygon(polygon)
+        else:
+            self.polygon = polygon
+            
         self.metadata = metadata or {}
-        # Store the manual torsional constant if provided by a parametric function
         self._j_manual = j_manual
         
-        # Fiber distances from Centroid (0,0)
+        # Step 2: Now .bounds will never fail
         minx, miny, maxx, maxy = self.polygon.bounds
         self.x_left = abs(minx)
         self.x_right = maxx
@@ -24,25 +30,6 @@ class CrossSection:
     def has_holes(self):
         return len(self.polygon.interiors) > 0
 
-    # # --- Inertia Calculation (Your logic integrated) ---
-    # def _calculate_raw_inertia(self):
-    #     def _poly_inertia(ring):
-    #         x, y = ring.coords.xy
-    #         iy, iz, iyz = 0, 0, 0
-    #         for i in range(len(x) - 1):
-    #             a_i = x[i] * y[i+1] - x[i+1] * y[i]
-    #             iy += (y[i]**2 + y[i]*y[i+1] + y[i+1]**2) * a_i
-    #             iz += (x[i]**2 + x[i]*x[i+1] + x[i+1]**2) * a_i
-    #             iyz += (x[i]*y[i+1] + 2*x[i]*y[i] + 2*x[i+1]*y[i+1] + x[i+1]*y[i]) * a_i
-    #         return abs(iy / 12.0), abs(iz / 12.0), iyz / 24.0
-    #
-    #     Iy, Iz, Iyz = _poly_inertia(self.polygon.exterior)
-    #     for interior in self.polygon.interiors:
-    #         h_iy, h_iz, h_iyz = _poly_inertia(interior)
-    #         Iy -= h_iy
-    #         Iz -= h_iz
-    #         Iyz -= h_iyz
-    #     return Iy, Iz, Iyz
 
     def _calculate_raw_inertia(self):
             def _poly_inertia(ring):
@@ -106,24 +93,41 @@ class CrossSection:
         wz_left = self.Iz / self.x_left if self.x_left > 0 else 0
         return wy_top, wy_bot, wz_right, wz_left
 
-    @property
-    def J(self):
-        """Torsional Constant (St. Venant)."""
-        # --- PRIORITY 1: Manual/Parametric Override ---
-        # If the creation function calculated a high-precision J, use it.
-        if self._j_manual is not None:
-            return self._j_manual
 
-        # --- PRIORITY 2: Closed Section (Hollow) Logic ---
-        if self.has_holes:
-            area_int = sum(Polygon(h).area for h in self.polygon.interiors)
-            area_mean = ((self.area + area_int) + area_int) / 2
-            peri_mean = (self.polygon.exterior.length + sum(h.length for h in self.polygon.interiors)) / 2
-            t_eff = self.area / peri_mean
-            return (4 * (area_mean**2) * t_eff) / peri_mean
+    def mesh_section(self, max_area=1.0):
+        import meshpy.triangle as triangle
+        points = []
+        facets = []
         
-        # --- PRIORITY 3: Open Section Fallback ---
-        # Note: This is a rough approximation. Parametric creation should 
-        # ideally always provide j_manual for open sections.
-        avg_t = self.area / ((self.polygon.exterior.length + sum(h.length for h in self.polygon.interiors)) / 2)
-        return (1/3) * self.area * (avg_t**2)
+        # Helper to add a loop (exterior or interior) to the mesh info
+        def add_loop(coords):
+            start_idx = len(points)
+            new_points = list(coords)[:-1]
+            points.extend(new_points)
+            for i in range(len(new_points)):
+                facets.append((start_idx + i, start_idx + (i + 1) % len(new_points)))
+
+        # 1. Add Exterior
+        add_loop(self.polygon.exterior.coords)
+        
+        # 2. Add Interiors and identify hole points
+        holes = []
+        if self.has_holes:
+            for interior in self.polygon.interiors:
+                add_loop(interior.coords)
+                # Use the centroid of the hole as the "exclusion point"
+                from shapely.geometry import Polygon
+                hole_poly = Polygon(interior)
+                holes.append((hole_poly.centroid.x, hole_poly.centroid.y))
+
+        # 3. Define mesh info
+        info = triangle.MeshInfo()
+        info.set_points(points)
+        info.set_facets(facets)
+        if holes:
+            info.set_holes(holes) # This is the magic line
+        
+        # 4. Build mesh
+        mesh = triangle.build(info, max_volume=max_area)
+        return mesh
+

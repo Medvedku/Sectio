@@ -4,7 +4,7 @@ from shapely import affinity
 from shapely.geometry import Polygon
 from shapely.geometry import Point
 from shapely.geometry import box
-
+from sectio.core import CrossSection
 
 def _get_res(subdivision):
     if subdivision == 'calc':
@@ -14,6 +14,13 @@ def _get_res(subdivision):
     if isinstance(subdivision, int):
         return subdivision
     return 32
+
+
+def st_venant_rect(w, t):
+    """Refined St. Venant J for a rectangle of width w and thickness t."""
+    if t > w: w, t = t, w  # Ensure t is the smaller dimension
+    # The exact series approximation for a rectangle
+    return w * (t**3) * (1/3 - 0.21 * (t/w) * (1 - (t**4) / (12 * w**4)))
 
 
 def create_rhs_geometry(h, b, t, r_out, r_in, subdivision='calc', section_id="RHS"):
@@ -32,15 +39,8 @@ def create_rhs_geometry(h, b, t, r_out, r_in, subdivision='calc', section_id="RH
     inner_poly = rounded_rect(b - 2*t, h - 2*t, r_in)
     rhs_poly = outer_poly.difference(inner_poly)
 
-    # 2. Calculate Parametric J (High Precision)
-    # The standard formula for RHS torsion
-    # We use h_mean and b_mean (centerline dimensions)
-    h_m = h - t
-    b_m = b - t
-    j_parametric = (2 * t * (h_m**2) * (b_m**2)) / (h_m + b_m)
-
     # 3. Return the CrossSection object
-    return CrossSection(rhs_poly, j_manual=j_parametric)
+    return CrossSection(rhs_poly)
 
 
 def create_chs_geometry(d, t, subdivision=128, section_id="CHS"):
@@ -55,7 +55,8 @@ def create_chs_geometry(d, t, subdivision=128, section_id="CHS"):
     outer_circle = Point(0, 0).buffer(r_out, quad_segs=res)
     inner_circle = Point(0, 0).buffer(r_in, quad_segs=res)
 
-    return outer_circle.difference(inner_circle)
+    # Wrap the resulting polygon
+    return CrossSection(outer_circle.difference(inner_circle))
 
 
 def create_shs_geometry(a, t, r_out, r_in, subdivision='calc', section_id="SHS"):
@@ -113,23 +114,8 @@ def create_angle_geometry(h, b, t, r_root, r_toe, subdivision='calc', section_id
 
     # Close the loop
     points.append((0, 0))
-    # 1. Calculate Parametric J
-    # Leg 1 (Vertical): full height h
-    # Leg 2 (Horizontal): width b minus the thickness already counted in the corner
-    j_leg1 = (1/3) * h * (t**3)
-    j_leg2 = (1/3) * (b - t) * (t**3)
-    
-    # 2. The Angle "Knuckle" Correction
-    # For angles, the junction of the two legs is a major source of J.
-    # A standard correction for the root fillet 'r' in an angle is:
-    # J_corr = (t^4 / 3) * ( (r/t)^2 + 2*(r/t) ) * some constant, 
-    # but a very reliable simplified version is:
-    j_junction = 0.15 * (t + r_root)**4 - 0.15 * (t**4) # Extra stiffness from the fillet
-    
-    j_total = j_leg1 + j_leg2 + j_junction
 
-    # 3. Return the CrossSection
-    return CrossSection(Polygon(points), j_manual=j_total)
+    return CrossSection(Polygon(points))
 
 
 def create_i_section_geometry(h, b, tf, tw, r_root, subdivision='calc', section_id="I-Section"):
@@ -205,16 +191,8 @@ def create_i_section_geometry(h, b, tf, tw, r_root, subdivision='calc', section_
     # Back to Origin (Redundant but safe)
     points.append((x_left, y_bottom))
 
-    # 1. Calculate Parametric J
-    j_web = (1/3) * (h - 2*tf) * (tw**3)
-    j_flanges = 2 * (1/3) * b * (tf**3)
-    # Standard junction correction for I-sections
-    j_junction = 2 * 0.15 * (tw + r_root)**4 
-    j_total = j_web + j_flanges + j_junction
-
-    # 2. Pass j_manual to CrossSection
-    return CrossSection(Polygon(points), j_manual=j_total)
-
+    # Return with the high-accuracy J
+    return CrossSection(Polygon(points))
 
 
 def create_ipn_section_geometry(h, b, tf, tw, r_root, r_toe, subdivision='calc', section_id="IPN"):
@@ -328,13 +306,8 @@ def create_ipn_section_geometry(h, b, tf, tw, r_root, r_toe, subdivision='calc',
     # Shift so Bottom-Left is at (0,0) to match other profiles
     shifted_points = [(x + b/2, y + h/2) for x, y in full_points]
 
-    # J for IPN (using mean tf)
-    j_web = (1/3) * (h - 2*tf) * (tw**3)
-    j_flanges = 2 * (1/3) * b * (tf**3)
-    # Tapered sections often have larger root fillets
-    j_junction = 2 * 0.15 * (tw + r_root)**4
-    
-    return CrossSection(shifted_points, j_manual=j_web + j_flanges + j_junction)
+    # Wrap the points in a Polygon first
+    return CrossSection(Polygon(shifted_points))
 
 
 def create_upn_section_geometry(h, b, tf, tw, r_root, r_toe, slope=None, subdivision='calc', section_id="UPN"):
@@ -397,13 +370,8 @@ def create_upn_section_geometry(h, b, tf, tw, r_root, r_toe, slope=None, subdivi
     points_bottom = [(x, -y) for x, y in points_top][::-1]
     full_path = points_bottom + points_top
     final_points = [(x, y + h/2) for x, y in full_path]
-    # J for Channels
-    # (h - 2*tf) is the clear web height
-    j_web = (1/3) * (h - 2*tf) * (tw**3)
-    j_flanges = 2 * (1/3) * b * (tf**3)
-    j_junction = 2 * 0.15 * (tw + r_root)**4
-    
-    return CrossSection(final_points, j_manual=j_web + j_flanges + j_junction)
+
+    return CrossSection(Polygon(final_points))
 
 
 def create_ue_section_geometry(h, b, tf, tw, r_root, r_toe, slope=0.09, subdivision='calc', section_id="UE"):
@@ -503,19 +471,8 @@ def create_t_section_geometry(h, b, tf, tw, r_root, r_toe, r_web, subdivision='c
     # Shift to Bottom-Left at (0,0)
     final_points = [(x + b/2, y) for x, y in full_points]
     
-    # 1. Calculate Parametric J
-    # Flange: Width b, thickness tf
-    j_flange = (1/3) * b * (tf**3)
-    # Web: Height (h - tf), thickness tw
-    j_web = (1/3) * (h - tf) * (tw**3)
-    # Junction: Only 1 root fillet junction (unlike I-beams which have 2)
-    # We use r_root to account for the stiffness at the 'T' intersection
-    j_junction = 0.15 * (tw + r_root)**4 
-
-    j_total = j_flange + j_web + j_junction
-
     # 2. Return the CrossSection object
-    return CrossSection(Polygon(final_points), j_manual=j_total)
+    return CrossSection(Polygon(final_points))
 
 
 def create_u_section_geometry(h, b, tf, tw, r_root, subdivision='calc', section_id="U-Section"):
@@ -567,15 +524,6 @@ def create_u_section_geometry(h, b, tf, tw, r_root, subdivision='calc', section_
 
     # Close the loop
     points.append((x_back, y_bottom))
-    # 1. Calculate Parametric J
-    # Web: height minus the thickness of the two flanges
-    j_web = (1/3) * (h - 2*tf) * (tw**3)
-    # Flanges: two flanges of width b
-    j_flanges = 2 * (1/3) * b * (tf**3)
-    # Junction: The two corners where web meets flange
-    j_junction = 2 * 0.15 * (tw + r_root)**4
-    
-    j_total = j_web + j_flanges + j_junction
 
-    # 2. Return the CrossSection object instead of a raw Polygon
-    return CrossSection(Polygon(points), j_manual=j_total)
+    return CrossSection(Polygon(points))
+

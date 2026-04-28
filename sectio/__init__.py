@@ -20,6 +20,7 @@ from .geometry import (
 from .providers.sqlite_provider import SQLiteProvider
 from .providers.svg_provider import SVGProvider
 from .catalog import Catalog
+from .core import CrossSection
 
 # 3. Exporters and Utilities
 from .exporters.svg_exporter import save_geometry_to_svg

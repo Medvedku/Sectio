@@ -3,7 +3,7 @@ import sqlite3
 import pandas as pd
 from sectio.registry import GEOM_MAP, PARAM_MAP
 from shapely import affinity
-from sectio.core import CrossSection
+from ..core import CrossSection
 
 class SQLiteProvider:
     """
@@ -59,13 +59,14 @@ class SQLiteProvider:
             val = row.get(db_col)
             # Ensure value is a float for Shapely/Numpy; handle NaNs as 0.0
             func_args[func_arg] = float(val) if pd.notna(val) else 0.0
-
         # 5. Geometry Generation
-        # section_id is passed for metadata; subdivision controls arc smoothness
-        poly = draw_func(**func_args, subdivision=subdivision, section_id=section_id)
+        # 'cs' stands for CrossSection; it contains the polygon and j_manual
+        cs = draw_func(**func_args, subdivision=subdivision, section_id=section_id)
         
         # Center the polygon at its centroid
-        cx, cy = poly.centroid.x, poly.centroid.y
-        centered_poly = affinity.translate(poly, xoff=-cx, yoff=-cy)
+        # We access the polygon attribute inside the cs object
+        cx, cy = cs.polygon.centroid.x, cs.polygon.centroid.y
+        centered_poly = affinity.translate(cs.polygon, xoff=-cx, yoff=-cy)
 
-        return CrossSection(polygon=centered_poly, metadata=row.to_dict())
+        # Re-wrap in a new CrossSection object with the centered geometry
+        return CrossSection(polygon=centered_poly, metadata=row.to_dict(), j_manual=cs._j_manual)

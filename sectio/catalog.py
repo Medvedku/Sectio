@@ -2,9 +2,15 @@ import sqlite3
 import pandas as pd
 import os
 
+# Get the directory where catalog.py is located
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Navigate to the resources folder
+DEFAULT_DB_PATH = os.path.join(BASE_DIR, "resources", "steel_profiles.db")
+
 class Catalog:
-    def __init__(self, db_path):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        # Use provided path, or fall back to the package default
+        self.db_path = db_path or DEFAULT_DB_PATH
 
     def list_families(self):
         """Returns a list of all table names (IPE, HEA, RHS, etc.)"""
